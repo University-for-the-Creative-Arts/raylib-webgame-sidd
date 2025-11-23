@@ -1,8 +1,84 @@
+// main.cpp
 #include "raylib.h"
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <cstring>
+#include <emscripten/fetch.h>  // Required for web requests (Emscripten only)
 
+// =====================================================
+// Global fetch-related variables
+// =====================================================
+#define MAX_WORDS 5
+#define MAX_WORD_LEN 64
+
+char EnemyWords[MAX_WORDS][MAX_WORD_LEN];
+int WordCount = 0;
+bool DataFetched = false;
+bool FetchFailed = false;
+bool FetchInProgress = false;
+
+// =====================================================
+// JSON parsing (for simple JSON arrays like ["one","two","three"])
+// =====================================================
+void ParseJSONWords(const char *json) {
+    WordCount = 0;
+    const char *p = json;
+    while (*p && WordCount < MAX_WORDS) {
+        const char *start = strchr(p, '\"');
+        if (!start) break;
+        const char *end = strchr(start + 1, '\"');
+        if (!end) break;
+        size_t len = end - (start + 1);
+        if (len >= MAX_WORD_LEN) len = MAX_WORD_LEN - 1;
+        strncpy(EnemyWords[WordCount], start + 1, len);
+        EnemyWords[WordCount][len] = '\0';
+        WordCount++;
+        p = end + 1;
+    }
+}
+
+// =====================================================
+// Fetch Callbacks
+// =====================================================
+void OnFetchSuccess(emscripten_fetch_t *fetch) {
+    char *buf = (char*)malloc(fetch->numBytes + 1);
+    memcpy(buf, fetch->data, fetch->numBytes);
+    buf[fetch->numBytes] = '\0';
+    ParseJSONWords(buf);
+    free(buf);
+    emscripten_fetch_close(fetch);
+    FetchInProgress = false;
+    DataFetched = true;
+}
+
+void OnFetchError(emscripten_fetch_t *fetch) {
+    emscripten_fetch_close(fetch);
+    FetchInProgress = false;
+    FetchFailed = true;
+}
+
+void StartFetch() {
+    if (FetchInProgress) return;
+    FetchInProgress = true;
+    FetchFailed = false;
+
+    const char *url = "https://random-word-api.herokuapp.com/word?number=3";
+
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_attr_init(&attr);
+    strcpy(attr.requestMethod, "GET");
+    attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.onsuccess = OnFetchSuccess;
+    attr.onerror = OnFetchError;
+    attr.userData = NULL;
+
+    emscripten_fetch(&attr, url);
+}
+
+// =====================================================
+// MAIN GAME
+// =====================================================
 int main() {
     srand(time(nullptr));
 
@@ -52,12 +128,18 @@ int main() {
         EnemySpeed = 1.5f;
         EnemyAlive = true;
         EnemyRespawnTime = 0;
+
+        // 🎯 Use fetched data to affect enemy behavior dynamically
+        if (DataFetched && WordCount > 0) {
+            EnemySpeed = 1.5f + (float)WordCount; // faster with more fetched words
+        }
     };
 
-    InitWindow(screenWidth, screenHeight, "Raylib Single Enemy Stomp & Score");
+    InitWindow(screenWidth, screenHeight, "Game");
     SetTargetFPS(60);
 
     ResetGame();
+    StartFetch(); // Fetch data once at the start
 
     while (!WindowShouldClose()) {
         if (!GameOver) {
@@ -139,6 +221,9 @@ int main() {
             if (IsKeyPressed(KEY_ENTER)) ResetGame();
         }
 
+        // =====================================================
+        // DRAW
+        // =====================================================
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
@@ -153,6 +238,18 @@ int main() {
         if (EnemyAlive) DrawRectangle((int)EnemyX, (int)EnemyY, EnemySize, EnemySize, RED);
 
         DrawText(TextFormat("Score: %d", Score), 20, 20, 30, WHITE);
+
+        // 🛰️ Display fetch data state
+        if (FetchInProgress) {
+            DrawText("Fetching data from API...", 20, 60, 20, ORANGE);
+        } else if (DataFetched) {
+            DrawText("Fetched Words:", 20, 60, 20, DARKGRAY);
+            for (int i = 0; i < WordCount; i++) {
+                DrawText(EnemyWords[i], 40, 90 + i * 20, 20, GRAY);
+            }
+        } else if (FetchFailed) {
+            DrawText("Failed to fetch API data!", 20, 60, 20, RED);
+        }
 
         if (GameOver) {
             DrawText("GAME OVER", screenWidth / 2 - 150, screenHeight / 2 - 40, 40, RED);
