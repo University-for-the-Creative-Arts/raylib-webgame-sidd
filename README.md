@@ -14,4 +14,7 @@ The Random Word API is a simple, public web service that provides a list of rand
 
 ## Game
 
-![Spawner Screenshot](Webgame.gif)
+[Web Game](https://siddplus.itch.io/game)
+
+![Web game GIF](Webgame.gif)
+
