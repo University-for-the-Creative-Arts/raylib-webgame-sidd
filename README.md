@@ -11,3 +11,7 @@ To serve and play your Emscripten-compiled project in a web browser, you need to
 The Random Word API is a simple, public web service that provides a list of random words upon request. By using a standard HTTP GET method and appending the query parameter ?number=3, your C++ application was able to specify that it wanted three words. The API responds with the requested words formatted as a JSON array. Your code then parsed this array to extract the words and used the count of these words to dynamically modify the enemy speed in your game, demonstrating how external, real-time data can be used to influence game parameters.
 
 [Random Word Generator](https://random-word-api.herokuapp.com/word?number=3)
+
+## Game
+
+![Spawner Screenshot](Webgame.gif)
